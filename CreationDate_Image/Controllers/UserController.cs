@@ -17,7 +17,11 @@ namespace CreationDate_Image.Controllers
 
         public IActionResult Index()
         {
-            var users = new List<User>();
+            List<User> users = new List<User>();
+            try
+            {
+
+           
             string connectionString = _configuration.GetConnectionString("MyAppDB");
 
             using (SqlConnection connection = new SqlConnection(connectionString))
@@ -39,7 +43,9 @@ namespace CreationDate_Image.Controllers
                                 Id = Convert.ToInt32(reader["Id"]),
                                 UserName = reader["UserName"].ToString(),
                                 CreationDate = Convert.ToDateTime(reader["CreationDate"]),
-                                Image = reader["Image"].ToString()
+                                Image = reader["Image"] != DBNull.Value
+                                ? Convert.ToBase64String((byte[])reader["Image"])
+                                : null
                             };
                             users.Add(user);
                         }
@@ -48,6 +54,12 @@ namespace CreationDate_Image.Controllers
                 }
             }
 
+            }
+            catch (Exception)
+            {
+
+                throw;
+            }
             return View(users);
         }
 
@@ -62,15 +74,15 @@ namespace CreationDate_Image.Controllers
         {
             if (ModelState.IsValid)
             {
-      
-                string base64Image = null;
+                byte[] imageBytes = null;
+                //string base64Image = null;
                 if (model.ImageFile != null && model.ImageFile.Length > 0)
                 {
                     using (var ms = new MemoryStream())
                     {
                         await model.ImageFile.CopyToAsync(ms);
-                        byte[] imageBytes = ms.ToArray();
-                        base64Image = Convert.ToBase64String(imageBytes);
+                        imageBytes = ms.ToArray();
+                        //base64Image = Convert.ToBase64String(imageBytes);
                     }
                 }
 
@@ -83,10 +95,20 @@ namespace CreationDate_Image.Controllers
                         command.CommandType = CommandType.StoredProcedure;
                         command.Parameters.AddWithValue("@Action", "INSERT");
                         command.Parameters.AddWithValue("@UserName", model.UserName);
-                        if (string.IsNullOrEmpty(base64Image))
+
+                        if (imageBytes == null)
+                        {
                             command.Parameters.AddWithValue("@Image", DBNull.Value);
+                        }
                         else
-                            command.Parameters.AddWithValue("@Image", base64Image);
+                        {
+                            // Otherwise, pass the byte array (imageBytes) to the SQL parameter
+                            command.Parameters.AddWithValue("@Image", imageBytes);
+                        }
+                        //if (string.IsNullOrEmpty(base64Image))
+                        //    command.Parameters.AddWithValue("@Image", DBNull.Value);
+                        //else
+                        //    command.Parameters.AddWithValue("@Image", base64Image);
 
                         connection.Open();
                         var newId = command.ExecuteScalar();
@@ -118,7 +140,9 @@ namespace CreationDate_Image.Controllers
                             user.Id = Convert.ToInt32(reader["Id"]);
                             user.UserName = reader["UserName"].ToString();
                             user.CreationDate = Convert.ToDateTime(reader["CreationDate"]);
-                            user.Image = reader["Image"].ToString();
+                            user.Image = reader["Image"] != DBNull.Value
+                                ? Convert.ToBase64String((byte[])reader["Image"])
+                                : null;
                         }
                     }
                 }
@@ -131,14 +155,15 @@ namespace CreationDate_Image.Controllers
         {
             if (ModelState.IsValid)
             {
-                string base64Image = null;
+                byte[] imageBytes = null;
+                //string base64Image = null;
                 if (model.ImageFile != null && model.ImageFile.Length > 0)
                 {
                     using (var ms = new MemoryStream())
                     {
                         await model.ImageFile.CopyToAsync(ms);
-                        byte[] imageBytes = ms.ToArray();
-                        base64Image = Convert.ToBase64String(imageBytes);
+                       imageBytes = ms.ToArray();
+                        //base64Image = Convert.ToBase64String(imageBytes);
                     }
                 }
                 string connectionString = _configuration.GetConnectionString("MyAppDB");
@@ -150,10 +175,10 @@ namespace CreationDate_Image.Controllers
                         command.Parameters.AddWithValue("@Action", "UPDATE");
                         command.Parameters.AddWithValue("@Id", model.Id);
                         command.Parameters.AddWithValue("@UserName", model.UserName);
-                        if (string.IsNullOrEmpty(base64Image))
+                        if (imageBytes == null || imageBytes.Length == 0)
                             command.Parameters.AddWithValue("@Image", DBNull.Value);
                         else
-                            command.Parameters.AddWithValue("@Image", base64Image);
+                            command.Parameters.AddWithValue("@Image", imageBytes);
                         connection.Open();
                         command.ExecuteNonQuery();
                     }
